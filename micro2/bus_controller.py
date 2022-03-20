@@ -2,6 +2,8 @@ import pika
 import pika.exceptions
 import asyncio
 
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 from aio_pika import connect
 from aio_pika.abc import AbstractIncomingMessage
 from threading import Thread
@@ -10,7 +12,7 @@ from json import loads
 from settings import settings
 from logger import log
 from time import sleep
-from database import controller
+
 from bus_event_handlers.add_event import AddEventHandler
 from bus_event_handlers.delete_event import DeleteEventHandler
 from bus_event_handlers.update_event import UpdateEventHandler
@@ -18,37 +20,15 @@ from bus_event_handlers.update_event import UpdateEventHandler
 credentials = pika.PlainCredentials(settings.rabbit_user, settings.rabbit_pwd)
 
 
-# def get_connection():
-#     conn = pika.BlockingConnection(pika.ConnectionParameters(host="bus",
-#                                                              virtual_host="/",
-#                                                              credentials=credentials))
-#     return conn
-
-
-async def callback(message: AbstractIncomingMessage):
-    body = message.body.decode('utf-8')
-    try:
-        body = loads(body)
-        if body['event'] == 'add':
-            # handle add event
-            await AddEventHandler(session=next(controller.get_session())).handle(body)
-        if body['event'] == 'delete':
-            # handle delete event
-            await DeleteEventHandler(session=next(controller.get_session())).handle(body)
-        if body['event'] == 'update':
-            # handle update event
-            await UpdateEventHandler(session=next(controller.get_session())).handle(body)
-
-    except Exception as e:
-        log.error(f"Error {e}. Type {type(e)}")
-    log.info(f" [x] {body}")
-
 
 class BusReceiverController(Thread):
     def __init__(self):
         super().__init__()
         self.connection = None
         self.dsn = f"amqp://{settings.rabbit_user}:{settings.rabbit_pwd}@{settings.rabbit_host}/"
+        self.engine = create_async_engine(
+            f"postgresql+asyncpg://{settings.database_user}:{settings.database_pwd}@{settings.database_host}/{settings.database_name}",
+            echo=False)
 
     async def get_connection(self):
         retry = True
@@ -63,6 +43,24 @@ class BusReceiverController(Thread):
                 log.info(f"Connection successful")
                 retry = False
 
+    async def callback(self, message: AbstractIncomingMessage):
+        body = message.body.decode('utf-8')
+        log.info(f" [x] {body}")
+        try:
+            body = loads(body)
+            session = sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+            if body['event'] == 'add':
+                handler = AddEventHandler(session=session)
+                await handler.handle(body)
+            if body['event'] == 'delete':
+                handler = DeleteEventHandler(session=session)
+                await handler.handle(body)
+            if body['event'] == 'update':
+                handler = UpdateEventHandler(session=session)
+                await handler.handle(body)
+        except Exception as e:
+            log.error(f"Error {e}. Type {type(e)}")
+
     async def s(self):
         await self.get_connection()
 
@@ -71,7 +69,7 @@ class BusReceiverController(Thread):
             channel = await self.connection.channel()
             queue = await channel.declare_queue('statistic_queue')
             log.info(f"Start consuming in statistic queue")
-            await queue.consume(callback, no_ack=True)
+            await queue.consume(self.callback, no_ack=True)
             await asyncio.Future()
 
     def run(self) -> None:

@@ -38,18 +38,6 @@ class AddEventHandler:
                     log.error(f"Error when writing run to DB. Error - {e}")
                     success = False
                     msg = f"Unhandled error when writing run. Error - {e}"
-                else:
-                    success = True
-                    if result:
-                        msg = "update"
-                    else:
-                        msg = "create"
-        else:
-            success = False
-            if data:
-                msg = "Incorrect type"
-            else:
-                msg = "No data"
         try:
             cache.delete('statistic')
         except Exception as e:

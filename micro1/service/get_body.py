@@ -12,7 +12,7 @@ def get_cache(key):
     if _key is None:
         _key = 'all'
     log.info(f"Try get from cache for key {_key}")
-    return r.get(_key)
+    return cache.get(_key)
 
 
 class GetBodyService:

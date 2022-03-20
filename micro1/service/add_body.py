@@ -38,11 +38,6 @@ class AddBodyService:
                         _sql = update(KeyBody).where(KeyBody.requestkey == key).values(
                             duplicates=duplicates)
                         cache.delete(key)
-                        try:
-                            cache.delete('all')
-                        except Exception as e:
-                            log.error(f"Error when delete all from cache. Error - {e}")
-
                     else:
                         _sql = insert(KeyBody).values(id=str(uuid4()),
                                                       requestkey=key,
@@ -61,6 +56,10 @@ class AddBodyService:
                         msg = "update"
                     else:
                         msg = "create"
+                    try:
+                        cache.delete('all')
+                    except Exception as e:
+                        log.error(f"Error when delete all from cache. Error - {e}")
         else:
             success = False
             if data:

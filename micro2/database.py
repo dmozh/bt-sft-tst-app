@@ -16,7 +16,7 @@ class DatabaseController:
             f"postgresql+asyncpg://{settings.database_user}:{settings.database_pwd}@{settings.database_host}/{settings.database_name}",
             echo=False)
         log.info(self.engine)
-        self.AsyncSession = sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+        self.AsyncSession = sessionmaker(self.engine, expire_on_commit=True, class_=AsyncSession)
 
     async def health_check(self):
         async with self.AsyncSession.begin() as session:

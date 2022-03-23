@@ -5,9 +5,6 @@ from api.get_body import GetBodyHandler
 import asyncio
 from logger import log
 from settings import settings
-from database import controller
-from cache import r
-from time import sleep
 from bus_controller import BusReceiverController
 
 import threading
